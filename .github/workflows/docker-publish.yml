@@ -32,22 +32,91 @@ jobs:
       - name: Build Docker image for testing
         run: docker build -t bracegreen-test .
       
+      - name: Prepare authenticated data repo URL
+        id: data_repo
+        run: |
+          DATA_REPO_URL="${{ secrets.DATA_REPO_URL }}"
+          if [ -n "$DATA_REPO_URL" ]; then
+            # If repo URL contains a token, use it as-is
+            # Otherwise, if we have GITHUB_TOKEN, inject it for private repos
+            if [[ "$DATA_REPO_URL" == *"@"* ]]; then
+              echo "url=$DATA_REPO_URL" >> $GITHUB_OUTPUT
+            elif [ -n "${{ secrets.GITHUB_TOKEN }}" ]; then
+              # Inject token into HTTPS URL
+              AUTH_URL=$(echo "$DATA_REPO_URL" | sed "s|https://|https://${{ secrets.GITHUB_TOKEN }}@|")
+              echo "url=$AUTH_URL" >> $GITHUB_OUTPUT
+            else
+              echo "url=$DATA_REPO_URL" >> $GITHUB_OUTPUT
+            fi
+          else
+            # Default public repo
+            echo "url=https://github.com/LSX-UniWue/brace-ctf-data.git" >> $GITHUB_OUTPUT
+          fi
+      
       - name: Start green agent container
         run: |
+          echo "Starting green agent container..."
           docker run -d --name green-agent -p 9001:9001 \
             -e OPENAI_API_KEY="${{ secrets.OPENAI_API_KEY }}" \
             -e OPENAI_BASE_URL="${{ secrets.OPENAI_BASE_URL }}" \
-            -e DATA_REPO_URL="${{ secrets.DATA_REPO_URL }}" \
-            -e DATA_BRANCH="${{ secrets.DATA_BRANCH }}" \
+            -e DATA_REPO_URL="${{ steps.data_repo.outputs.url }}" \
+            -e DATA_BRANCH="${{ secrets.DATA_BRANCH || 'master' }}" \
             bracegreen-test
+          echo "Container started. Checking status:"
+          docker ps -a | grep green-agent
+          echo ""
+          echo "Initial container logs:"
+          sleep 3
+          docker logs green-agent || true
       
       - name: Wait for agent to be ready
         run: |
-          timeout 60 bash -c 'until curl -f http://localhost:9001/ > /dev/null 2>&1; do sleep 2; done' || \
-          (docker logs green-agent && exit 1)
+          echo "Waiting for agent to be ready (checking /.well-known/agent-card.json)..."
+          MAX_ATTEMPTS=30
+          ATTEMPT=0
+          
+          while [ $ATTEMPT -lt $MAX_ATTEMPTS ]; do
+            ATTEMPT=$((ATTEMPT + 1))
+            
+            # Check if container is still running
+            if ! docker ps | grep -q green-agent; then
+              echo "✗ Container stopped unexpectedly!"
+              echo "Container logs:"
+              docker logs green-agent
+              exit 1
+            fi
+            
+            # Try to connect to agent card endpoint
+            if curl -f -s http://localhost:9001/.well-known/agent-card.json > /dev/null 2>&1; then
+              echo "✓ Agent is ready after $ATTEMPT attempts!"
+              echo ""
+              echo "Agent card response:"
+              curl -s http://localhost:9001/.well-known/agent-card.json | head -30
+              exit 0
+            fi
+            
+            echo "Attempt $ATTEMPT/$MAX_ATTEMPTS: Agent not ready yet..."
+            if [ $((ATTEMPT % 5)) -eq 0 ]; then
+              echo "Recent container logs:"
+              docker logs --tail 20 green-agent
+            fi
+            sleep 2
+          done
+          
+          echo "✗ Timeout: Agent did not become ready after $MAX_ATTEMPTS attempts"
+          echo ""
+          echo "Container status:"
+          docker ps -a | grep green-agent
+          echo ""
+          echo "Full container logs:"
+          docker logs green-agent
+          exit 1
       
       - name: Run A2A conformance tests
-        run: uv run pytest tests/test_agent.py -v --tb=short
+        run: |
+          echo "Running A2A conformance tests..."
+          echo "Agent URL: http://localhost:9001"
+          uv run pytest tests/test_agent.py -v --tb=short --agent-url http://localhost:9001
       
       - name: Show agent logs on failure
         if: failure()
