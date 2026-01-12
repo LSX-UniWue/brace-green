@@ -8,6 +8,9 @@ streaming = true
 pushNotifications = true
 stateTransitionHistory = false
 
+defaultInputModes = ["text", "text/plain"]
+defaultOutputModes = ["text", "text/plain"]
+
 [[skills]]
 id = "ctf-evaluator"
 name = "CTF Challenge Evaluator"
