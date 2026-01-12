@@ -19,7 +19,20 @@ else
     # Clone fresh
     echo "📥 Cloning data repository..."
     rm -rf "$DATA_DIR"
-    git clone --depth 1 --branch "$DATA_BRANCH" "$DATA_REPO_URL" "$DATA_DIR"
+    
+    # Handle authentication for private repos
+    if [[ "$DATA_REPO_URL" == *"@"* ]]; then
+      # URL already contains authentication token
+      git clone --depth 1 --branch "$DATA_BRANCH" "$DATA_REPO_URL" "$DATA_DIR"
+    else
+      # Try public clone first
+      if ! git clone --depth 1 --branch "$DATA_BRANCH" "$DATA_REPO_URL" "$DATA_DIR" 2>/dev/null; then
+        echo "⚠️  Public clone failed, repository may be private"
+        echo "   Set DATA_REPO_URL with authentication token for private repos"
+        echo "   Example: https://TOKEN@github.com/user/repo.git"
+        exit 1
+      fi
+    fi
 fi
 
 echo "✅ Data repository cloned successfully!"
