@@ -2,7 +2,7 @@
 name = "bracegreen"
 version = "0.1.0"
 description = "Green agent for evaluating LLM agents"
-requires-python = ">=3.9"
+requires-python = ">=3.11"
 dependencies = [
     "python-dotenv",
     "litellm",
@@ -22,9 +22,10 @@ dependencies = [
 
 [project.optional-dependencies]
 test = [
-    "pytest>=7.0.0",
-    "pytest-asyncio>=0.21.0",
-    "a2a>=0.1.0",
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.24.0",
+    "httpx>=0.28.1",
+    "a2a-sdk[http-server]>=0.3.20",
 ]
 dev = [
     "nest-asyncio>=1.5.0",

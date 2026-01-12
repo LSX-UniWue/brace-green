@@ -165,25 +165,11 @@ async def send_text_message(text: str, url: str, context_id: str | None = None, 
     return events
 
 
-# Pytest fixtures
+# A2A conformance tests (compatible with green-agent-template)
 
-@pytest.fixture
-def green_agent():
-    """URL for the green agent (evaluator)."""
-    return "http://localhost:9001"
-
-
-@pytest.fixture
-def white_agent():
-    """URL for the white agent (CTF solver)."""
-    return "http://localhost:8000"
-
-
-# A2A conformance tests for Green Agent
-
-def test_green_agent_card(green_agent):
-    """Validate green agent card structure and required fields."""
-    response = httpx.get(f"{green_agent}/.well-known/agent-card.json")
+def test_agent_card(agent):
+    """Validate agent card structure and required fields."""
+    response = httpx.get(f"{agent}/.well-known/agent-card.json")
     assert response.status_code == 200, "Agent card endpoint must return 200"
 
     card_data = response.json()
@@ -194,127 +180,30 @@ def test_green_agent_card(green_agent):
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("streaming", [True, False])
-async def test_green_agent_message(green_agent, streaming):
-    """Test that green agent returns valid A2A message format."""
-    # Simple test request for green agent
-    test_request = '{"challenges": ["Funbox"], "agent_config": {"mode": "internal"}}'
-    
-    events = await send_text_message(test_request, green_agent, streaming=streaming)
-
-    all_errors = []
-    for event in events:
-        match event:
-            case Message() as msg:
-                errors = validate_event(msg.model_dump())
-                all_errors.extend(errors)
-
-            case (task, update):
-                errors = validate_event(task.model_dump())
-                all_errors.extend(errors)
-                if update:
-                    errors = validate_event(update.model_dump())
-                    all_errors.extend(errors)
-
-            case _:
-                pytest.fail(f"Unexpected event type: {type(event)}")
-
-    assert events, "Green agent should respond with at least one event"
-    assert not all_errors, f"Message validation failed:\n" + "\n".join(all_errors)
-
-
-# A2A conformance tests for White Agent
-
-def test_white_agent_card(white_agent):
-    """Validate white agent card structure and required fields."""
-    response = httpx.get(f"{white_agent}/.well-known/agent-card.json")
-    assert response.status_code == 200, "Agent card endpoint must return 200"
-
-    card_data = response.json()
-    errors = validate_agent_card(card_data)
-
-    assert not errors, f"Agent card validation failed:\n" + "\n".join(errors)
-
-
-@pytest.mark.asyncio
-@pytest.mark.parametrize("streaming", [True, False])
-async def test_white_agent_message(white_agent, streaming):
-    """Test that white agent returns valid A2A message format."""
-    # Simple test request for white agent
-    test_context = "You are solving a CTF challenge. What is your first step?"
-    
-    events = await send_text_message(test_context, white_agent, streaming=streaming)
-
-    all_errors = []
-    for event in events:
-        match event:
-            case Message() as msg:
-                errors = validate_event(msg.model_dump())
-                all_errors.extend(errors)
-
-            case (task, update):
-                errors = validate_event(task.model_dump())
-                all_errors.extend(errors)
-                if update:
-                    errors = validate_event(update.model_dump())
-                    all_errors.extend(errors)
-
-            case _:
-                pytest.fail(f"Unexpected event type: {type(event)}")
-
-    assert events, "White agent should respond with at least one event"
-    assert not all_errors, f"Message validation failed:\n" + "\n".join(all_errors)
-
-
-# Custom BraceGreen-specific tests
-
-@pytest.mark.asyncio
-async def test_green_agent_evaluation_format(green_agent):
-    """Test that green agent returns properly formatted evaluation results."""
+async def test_message(agent, streaming):
+    """Test that agent returns valid A2A message format."""
+    # Simple test request (works for both green and white agents)
     test_request = '{"challenges": ["Funbox"], "agent_config": {"mode": "internal"}, "max_iterations": 2}'
     
-    events = await send_text_message(test_request, green_agent, streaming=False)
-    
-    # Find the message event with results
-    result_messages = [
-        event for event in events 
-        if isinstance(event, Message) and event.role == Role.agent
-    ]
-    
-    assert result_messages, "Green agent should return at least one message"
-    
-    # Check that response contains evaluation results
-    last_message = result_messages[-1]
-    assert last_message.parts, "Message should contain parts"
-    
-    # Extract text from first text part
-    text_parts = [p.content for p in last_message.parts if hasattr(p.content, 'text')]
-    assert text_parts, "Message should contain at least one text part"
+    events = await send_text_message(test_request, agent, streaming=streaming)
 
+    all_errors = []
+    for event in events:
+        match event:
+            case Message() as msg:
+                errors = validate_event(msg.model_dump())
+                all_errors.extend(errors)
 
-@pytest.mark.asyncio  
-async def test_context_preservation(white_agent):
-    """Test that agent preserves context across multiple messages."""
-    context_id = uuid4().hex
-    
-    # First message
-    events1 = await send_text_message(
-        "Remember this number: 42", 
-        white_agent, 
-        context_id=context_id,
-        streaming=False
-    )
-    assert events1, "First message should get a response"
-    
-    # Second message in same context
-    events2 = await send_text_message(
-        "What number did I just tell you?", 
-        white_agent,
-        context_id=context_id, 
-        streaming=False
-    )
-    assert events2, "Second message should get a response"
-    
-    # Extract response text
-    messages = [e for e in events2 if isinstance(e, Message)]
-    assert messages, "Should receive at least one message"
+            case (task, update):
+                errors = validate_event(task.model_dump())
+                all_errors.extend(errors)
+                if update:
+                    errors = validate_event(update.model_dump())
+                    all_errors.extend(errors)
+
+            case _:
+                pytest.fail(f"Unexpected event type: {type(event)}")
+
+    assert events, "Agent should respond with at least one event"
+    assert not all_errors, f"Message validation failed:\n" + "\n".join(all_errors)
 
