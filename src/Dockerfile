@@ -24,6 +24,7 @@ COPY --chmod=755 docker-entrypoint.sh /home/agent/
 ENV PYTHONUNBUFFERED=1
 ENV DATA_REPO_URL=https://github.com/LSX-UniWue/brace-ctf-data.git
 ENV DATA_BRANCH=master
+ENV BRACEGREEN_PRODUCTION=true
 
 ENTRYPOINT ["/home/agent/docker-entrypoint.sh"]
 CMD ["--host", "0.0.0.0", "--port", "9001", "--writeups-path", "/home/agent/data"]
