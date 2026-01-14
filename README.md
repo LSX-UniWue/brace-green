@@ -40,10 +40,9 @@ curl http://localhost:9001/
 
 ## How It Works
 
-1. **Container starts** → Entrypoint script clones the latest challenge data from the configured Git repository
-2. **Data is cached** → Subsequent restarts pull only the changes
-3. **Agent serves** → A2A-compatible green agent server starts on port 9001
-4. **Always fresh** → No need to rebuild the image when challenge data updates
+1. **Start the White Agent**: Launch the CTF-solving (white) agent locally or in a container so it is available to connect.
+2. **Start the Green Agent**: Entrypoint script clones the challenge data from the configured Git repository and starts the A2A-compatible green agent server on port 9001.
+3. **Register White Agent with Green Agent and run assessment**: Register the running white agent with the green agent, typically via A2A protocol, so the evaluator knows where to reach the CTF solver. See the [leaderboard repo](https://github.com/LSX-UniWue/brace-agentbeats-leaderboard) for this "scenario" setup.
 
 ## AgentBeats Deployment
 
@@ -55,8 +54,16 @@ See the [AgentBeats Tutorial](https://docs.agentbeats.dev/tutorial/) for deploym
 
 Pre-built images are available at:
 ```
-ghcr.io/lsx-uniwue/bracegreen:latest
-ghcr.io/lsx-uniwue/bracegreen:v1.0.0
+# Green Agent Evaluator images
+ghcr.io/lsx-uniwue/brace-green:latest
+ghcr.io/lsx-uniwue/brace-green:v1.0.0
+
+# White Agent Solver images
+ghcr.io/lsx-uniwue/brace-green-white:latest
+ghcr.io/lsx-uniwue/brace-green-white:v1.0.0
+```
+(See [.github/workflows/docker-publish.yml](./.github/workflows/docker-publish.yml) for green agent CI/CD.)
+(See [.github/workflows/docker-publish-white.yml](./.github/workflows/docker-publish-white.yml) for white agent CI/CD.)
 ```
 
 ## Architecture
@@ -64,18 +71,11 @@ ghcr.io/lsx-uniwue/bracegreen:v1.0.0
 ### Green Agent (Evaluator)
 - **A2A Server**: Template-based A2A-compatible server that orchestrates CTF evaluations
 - **LangGraph Workflow**: Step-by-step evaluation with semantic comparison
-- **Dynamic Data Loading**: Challenge data fetched at runtime from Git repository
-- **Multi-Agent Support**: Can evaluate both internal LLM agents and remote A2A agents
+- **Dynamic Data Loading**: Challenge data fetched at runtime from Git repository to allow own CTF challenges
 
 ### White Agent (CTF Solver)
-- **A2A Server**: Standalone CTF solving agent following the debater template
-- **Async LLM**: Uses async LiteLLM for non-blocking command predictions
-- **Stateless**: Each evaluation gets a fresh agent context
-- **Template-Based**: Built on the official AgentBeats agent template
+- **A2A Server**: Standalone baseline CTF solving agent based on the official AgentBeats agent template
 
-## License
-
-See [LICENSE](LICENSE) for details.
 
 ## Running White Agent (CTF Solver)
 
@@ -92,20 +92,30 @@ docker run -p 8000:8000 \
   bracegreen-white-agent
 ```
 
-## Testing
+
+## Running Full Assessment
+
+To run a complete CTF evaluation with the leaderboard setup:
 
 ```bash
-# Install test dependencies
-uv sync --extra test
+# 1. Build both agents
+docker build -t bracegreen-evaluator -f src/Dockerfile .
+docker build -t bracegreen-white:test -f Dockerfile.white .
 
-# Start agents
-docker run -p 9001:9001 bracegreen-evaluator &
-cd white_agent && uv run python server.py --port 8000 &
+# 2. Clone and navigate to the leaderboard repository, then generate docker-compose
+cd ..
+git clone https://github.com/LSX-UniWue/brace-agentbeats-leaderboard.git
+cd brace-agentbeats-leaderboard
+uv run --python 3.13 --with tomli --with tomli-w --with requests \
+  python generate_compose.py --scenario scenario.toml
 
-# Run A2A conformance tests
-uv run pytest tests/ --agent-url http://localhost:9001
+# 3. Prepare output directory
+mkdir -p output
+chmod 777 output
+
+# 4. Run the assessment
+docker compose up
 ```
 
-## Development
+Results will be saved to `output/results.json` in the leaderboard repository.
 
-For development setup and full documentation, see the main development repository.
