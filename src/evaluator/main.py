@@ -99,6 +99,13 @@ def parse_args():
         help="Maximum iterations per step (default: 10)"
     )
     parser.add_argument(
+        "--include-goal",
+        type=str,
+        choices=["first", "always", "never"],
+        default="always",
+        help="When to include goals in prompts: 'first' (first step only), 'always' (all steps), 'never' (no steps) (default: always)"
+    )
+    parser.add_argument(
         "--writeups-path",
         type=str,
         default="./data",
@@ -252,7 +259,8 @@ def main():
             agent_interface=agent_interface,
             step_evaluator=step_evaluator,
             max_iterations_per_step=args.max_iterations,
-            enable_phoenix=not args.no_phoenix
+            enable_phoenix=not args.no_phoenix,
+            include_goal=args.include_goal
         )
         
         # Run evaluation (single or batch)

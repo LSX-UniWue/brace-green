@@ -96,15 +96,20 @@ class Agent:
         evaluator_config = request.config.get("evaluator_config", {})
         max_iterations = request.config.get("max_iterations", 10)
         enable_phoenix = request.config.get("enable_phoenix", False)
+        include_goal = request.config.get("include_goal", "always")
         
         # Production mode override (when running in Docker)
         is_production = os.getenv("BRACEGREEN_PRODUCTION", "false").lower() == "true"
         if is_production:
             # Enforce a2a mode in production
             agent_config["mode"] = "a2a"
+            include_goal = "first"
             # Prohibit evaluator config population in production
             evaluator_config = {}
             print("Production mode: Enforcing a2a mode and using default evaluator config")
+            await updater.update_status(
+                TaskState.working, new_agent_text_message(f"Production mode: Enforcing a2a mode and using default evaluator config")
+            )
 
         # Extract agent information from participants if in a2a mode
         if agent_config.get("mode") == "a2a" and request.participants:
@@ -151,7 +156,8 @@ class Agent:
             agent_interface=agent_interface,
             step_evaluator=step_evaluator,
             max_iterations_per_step=max_iterations,
-            enable_phoenix=enable_phoenix
+            enable_phoenix=enable_phoenix,
+            include_goal=include_goal
         )
 
         all_results = []
@@ -232,6 +238,7 @@ class Agent:
                     "overall_score": total_score,
                     "challenges_evaluated": len(challenges_to_evaluate),
                     "max_iterations": max_iterations,
+                    "include_goal": include_goal,
                     "timeout": agent_config.get("timeout"),
                     "results": all_results
                 }))

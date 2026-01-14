@@ -36,6 +36,13 @@ def build_step_context(state: Dict[str, Any], step_index: int) -> str:
     prerequisites = reference_alt.get("prerequisites", [])
     contraindications = reference_alt.get("contraindications", [])
     
+    # Determine if we should include the goal based on configuration
+    include_goal_config = state.get("include_goal", "always")
+    should_include_goal = (
+        include_goal_config == "always" or
+        (include_goal_config == "first" and step_index == 0)
+    )
+    
     # Build context string
     context_parts = []
     
@@ -51,10 +58,13 @@ def build_step_context(state: Dict[str, Any], step_index: int) -> str:
             context_parts.append(f"Step {i + 1}: {prev_context}")
         context_parts.append("")
     
-    # Add current step goal
+    # Add current step goal (conditionally based on config)
     context_parts.append("=== Current Step Objective ===")
     context_parts.append(f"Tactic: {tactic}")
-    context_parts.append(f"Goal: {goal}")
+    if should_include_goal:
+        context_parts.append(f"Goal: {goal}")
+    else:
+        context_parts.append("Goal: (hidden by configuration)")
     context_parts.append("")
     
     # Add prerequisites

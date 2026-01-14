@@ -25,6 +25,7 @@ class EvaluationState(TypedDict, total=False):
     agent_llm_config: Dict[str, Any]
     evaluator_llm_config: Dict[str, Any]
     max_iterations_per_step: int
+    include_goal: str  # "first", "always", or "never"
     
     # Current iteration state
     current_iteration: int

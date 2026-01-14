@@ -33,7 +33,8 @@ class EvaluatorWorkflow:
         agent_interface: LLMAgentInterface,
         step_evaluator: StepEvaluator,
         max_iterations_per_step: int = 10,
-        enable_phoenix: bool = False
+        enable_phoenix: bool = False,
+        include_goal: str = "always"
     ):
         """Initialize the evaluator workflow.
         
@@ -42,11 +43,13 @@ class EvaluatorWorkflow:
             step_evaluator: Evaluator for comparing predictions
             max_iterations_per_step: Maximum iterations per step
             enable_phoenix: Whether to enable Phoenix tracing (default: True)
+            include_goal: When to include goals in prompts: "first", "always", or "never" (default: "always")
         """
         self.agent_interface = agent_interface
         self.step_evaluator = step_evaluator
         self.max_iterations_per_step = max_iterations_per_step
         self.enable_phoenix = enable_phoenix and PHOENIX_AVAILABLE
+        self.include_goal = include_goal
         
         # Check if Phoenix is already initialized (should be done in main.py)
         # If already initialized, the tracer provider will be active
@@ -620,6 +623,7 @@ class EvaluatorWorkflow:
             "agent_llm_config": agent_llm_config,
             "evaluator_llm_config": evaluator_llm_config,
             "max_iterations_per_step": self.max_iterations_per_step,
+            "include_goal": self.include_goal,
             "current_iteration": 0,
             "current_step_goal_reached": False,
             "_step_eval_result": None,
