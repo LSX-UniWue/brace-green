@@ -62,9 +62,9 @@ ghcr.io/lsx-uniwue/brace-green:v1.0.0
 ghcr.io/lsx-uniwue/brace-green-white:latest
 ghcr.io/lsx-uniwue/brace-green-white:v1.0.0
 ```
-(See [.github/workflows/docker-publish.yml](./.github/workflows/docker-publish.yml) for green agent CI/CD.)
-(See [.github/workflows/docker-publish-white.yml](./.github/workflows/docker-publish-white.yml) for white agent CI/CD.)
-```
+
+- See [.github/workflows/docker-publish.yml](./.github/workflows/docker-publish.yml) for green agent CI/CD.
+- See [.github/workflows/docker-publish-white.yml](./.github/workflows/docker-publish-white.yml) for white agent CI/CD.
 
 ## Architecture
 
