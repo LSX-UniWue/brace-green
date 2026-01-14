@@ -8,7 +8,7 @@ from langchain_core.runnables import Runnable, RunnableConfig
 from langchain_community.chat_models import ChatLiteLLM
 from langchain_core.messages import HumanMessage, SystemMessage
 
-from .a2a_client import A2AClient, parse_agent_response
+from ..messenger import Messenger
 
 
 class AgentInterface(Runnable):
@@ -186,8 +186,7 @@ class A2AAgentInterface(AgentInterface):
         """
         self.agent_url = agent_url
         self.timeout = timeout
-        self._context_id = None  # Track context across steps
-        self._task_id = None
+        self.messenger = Messenger()
         
         self.system_prompt = (
             "You are a skilled penetration tester working on a capture-the-flag (CTF) challenge. "
@@ -236,29 +235,38 @@ class A2AAgentInterface(AgentInterface):
         # Construct the full prompt with system message
         full_message = f"{self.system_prompt}\n\n{context}"
         
-        async with A2AClient(self.agent_url, self.timeout) as client:
-            response = await client.send_message(
+        # Use Messenger to communicate with the A2A agent
+        # Messenger handles transport auto-detection and maintains context
+        try:
+            prediction = await self.messenger.talk_to_agent(
                 message=full_message,
-                context_id=self._context_id,
-                task_id=self._task_id
+                url=self.agent_url,
+                timeout=int(self.timeout)
             )
             
-            # Store context and task IDs for subsequent calls
-            self._context_id = response.get("context_id")
-            self._task_id = response.get("task_id")
+            # Clean up the prediction response
+            prediction = prediction.strip()
             
-            # Extract and clean prediction
-            prediction = parse_agent_response(response)
+            # Remove common markdown code block patterns
+            if prediction.startswith("```"):
+                lines = prediction.split("\n")
+                # Remove first line (opening ```)
+                lines = lines[1:]
+                # Remove last line if it's closing ```
+                if lines and lines[-1].strip() == "```":
+                    lines = lines[:-1]
+                prediction = "\n".join(lines).strip()
             
             if not prediction:
                 raise RuntimeError("Empty response from A2A agent")
             
             return prediction
+        except Exception as e:
+            raise RuntimeError(f"Failed to call A2A agent: {e}")
     
     def reset_context(self):
         """Reset the context for a new evaluation run."""
-        self._context_id = None
-        self._task_id = None
+        self.messenger.reset()
 
 
 def create_agent_interface(config: Dict[str, Any]) -> AgentInterface:

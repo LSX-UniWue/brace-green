@@ -173,7 +173,7 @@ def calculate_score(completed_results: List[Dict[str, Any]], steps: List[Any]) -
     return completed_steps / total_steps if total_steps > 0 else 0.0
 
 
-def load_challenge_steps(challenge_name: str, writeups_path: str = "./data/agentbeats") -> List[Any]:
+def load_challenge_steps(challenge_name: str, writeups_path: str = "./data") -> List[Any]:
     """Load steps from steps_enriched.json for a given challenge.
     
     Args:
@@ -211,7 +211,7 @@ def save_evaluation_results(results: Dict[str, Any], output_path: str) -> None:
     print(f"Evaluation results saved to: {output_file}")
 
 
-def discover_all_challenges(writeups_path: str = "./data/agentbeats") -> List[str]:
+def discover_all_challenges(writeups_path: str = "./data") -> List[str]:
     """Discover all available challenges in the writeups directory.
     
     Args:

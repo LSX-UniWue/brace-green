@@ -25,7 +25,7 @@ TERMINAL_STATES = {
 
 
 class Executor(AgentExecutor):
-    def __init__(self, writeups_path: str = "./data/agentbeats"):
+    def __init__(self, writeups_path: str = "./data"):
         self.writeups_path = writeups_path
         self.agents: dict[str, Agent] = {} # context_id to agent instance
 

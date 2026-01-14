@@ -26,8 +26,51 @@ def main():
     parser.add_argument("--host", type=str, default="127.0.0.1", help="Host to bind the server")
     parser.add_argument("--port", type=int, default=9001, help="Port to bind the server")
     parser.add_argument("--card-url", type=str, help="URL to advertise in the agent card")
-    parser.add_argument("--writeups-path", type=str, default="./data/agentbeats", help="Path to writeups directory")
+    parser.add_argument("--writeups-path", type=str, default="./data", help="Path to writeups directory")
     args = parser.parse_args()
+    
+    # Import here to use the utils function
+    from .evaluator.utils import discover_all_challenges
+    
+    # Debug: Print discovered challenges
+    print("=" * 60)
+    print("🔍 BraceGreen Server Startup - Challenge Discovery")
+    print("=" * 60)
+    print(f"📂 Writeups path: {args.writeups_path}")
+    
+    import os
+    abs_path = os.path.abspath(args.writeups_path)
+    print(f"📂 Absolute path: {abs_path}")
+    print(f"📂 Path exists: {os.path.exists(abs_path)}")
+    
+    if os.path.exists(abs_path):
+        print(f"📂 Contents of directory:")
+        try:
+            for item in os.listdir(abs_path):
+                item_path = os.path.join(abs_path, item)
+                if os.path.isdir(item_path):
+                    print(f"   📁 {item}/")
+                    # Check if it has steps_enriched.json
+                    steps_file = os.path.join(item_path, "steps_enriched.json")
+                    if os.path.exists(steps_file):
+                        print(f"      ✅ has steps_enriched.json")
+                    else:
+                        print(f"      ⚠️  missing steps_enriched.json")
+                else:
+                    print(f"   📄 {item}")
+        except Exception as e:
+            print(f"   ❌ Error listing directory: {e}")
+    
+    discovered = discover_all_challenges(args.writeups_path)
+    print(f"\n🎯 Challenges discovered: {len(discovered)}")
+    if discovered:
+        for challenge in discovered:
+            print(f"   ✓ {challenge}")
+    else:
+        print("   ⚠️  No challenges found!")
+        print(f"   💡 Make sure challenge directories with steps_enriched.json exist in {abs_path}")
+    print("=" * 60)
+    print()
 
     skill = AgentSkill(
         id="ctf-evaluator",

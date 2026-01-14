@@ -157,7 +157,7 @@ python -m src.evaluator.main \
 - `--evaluator-model`: Model for evaluator (default: gpt-4o)
 - `--evaluator-max-tokens`: Max tokens for evaluator (default: 2000)
 - `--max-iterations`: Maximum iterations per step (default: 10)
-- `--writeups-path`: Path to writeups directory (default: ./data/agentbeats)
+- `--writeups-path`: Path to writeups directory (default: ./data)
 - `--output`: Output file path (default: auto-generated)
 - `--api-key`: API key (default: from environment)
 - `--base-url`: Base URL for API (default: from environment)

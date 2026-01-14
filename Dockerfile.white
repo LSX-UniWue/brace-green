@@ -1,0 +1,22 @@
+# Dockerfile for BraceGreen White Agent (CTF Solver)
+# This can be registered as a purple agent on AgentBeats
+
+FROM ghcr.io/astral-sh/uv:python3.13-bookworm
+
+ENV UV_HTTP_TIMEOUT=300
+
+RUN adduser agentbeats
+USER agentbeats
+WORKDIR /home/agentbeats/white_agent
+
+COPY pyproject.toml uv.lock README.md ./
+COPY white_agent white_agent
+
+RUN \
+    --mount=type=cache,target=/home/agentbeats/.cache/uv,uid=1000 \
+    uv sync --locked --no-dev
+
+ENTRYPOINT ["uv", "run", "white_agent/server.py"]
+CMD ["--host", "0.0.0.0", "--port", "8000"]
+EXPOSE 8000
+

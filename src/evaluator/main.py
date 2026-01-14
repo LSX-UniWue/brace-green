@@ -101,7 +101,7 @@ def parse_args():
     parser.add_argument(
         "--writeups-path",
         type=str,
-        default="./data/agentbeats",
+        default="./data",
         help="Path to writeups directory (default: ./data/agentbeats)"
     )
     

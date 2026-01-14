@@ -1,6 +1,6 @@
 import os
 from typing import Any
-from pydantic import BaseModel, ValidationError
+from pydantic import BaseModel, ValidationError, HttpUrl
 from a2a.server.tasks import TaskUpdater
 from a2a.types import Message, TaskState, Part, TextPart, DataPart
 from a2a.utils import get_message_text, new_agent_text_message
@@ -13,30 +13,42 @@ from .evaluator.utils import discover_all_challenges
 
 
 class EvalRequest(BaseModel):
-    """Request format for BraceGreen evaluator."""
-    challenges: list[str]  # List of challenge names or ["all"]
-    agent_config: dict[str, Any]  # Agent configuration
-    evaluator_config: dict[str, Any] = {}  # Optional evaluator config
-    max_iterations: int = 10  # Max iterations per step
-    enable_phoenix: bool = False  # Whether to enable Phoenix tracing (requires Phoenix server)
+    """Request format sent by the AgentBeats platform to green agents."""
+    participants: dict[str, HttpUrl]  # role -> agent URL
+    config: dict[str, Any]
 
 
 class Agent:
     """BraceGreen evaluator agent."""
     
+    # No required participant roles (we accept any agents to evaluate)
     required_roles: list[str] = []
-    required_config_keys: list[str] = []
+    # Required config keys for evaluation
+    required_config_keys: list[str] = ["challenges", "agent_config"]
 
-    def __init__(self, writeups_path: str = "./data/agentbeats"):
+    def __init__(self, writeups_path: str = "./data"):
         self.messenger = Messenger()
         self.writeups_path = writeups_path
 
     def validate_request(self, request: EvalRequest) -> tuple[bool, str]:
         """Validate the incoming evaluation request."""
-        if not request.challenges:
-            return False, "No challenges specified."
+        # Standard validation from template
+        missing_roles = set(self.required_roles) - set(request.participants.keys())
+        if missing_roles:
+            return False, f"Missing roles: {missing_roles}"
 
-        if request.challenges == ["all"] or request.challenges == "all":
+        missing_config_keys = set(self.required_config_keys) - set(request.config.keys())
+        if missing_config_keys:
+            return False, f"Missing config keys: {missing_config_keys}"
+
+        # Additional validation specific to our evaluator
+        challenges = request.config.get("challenges", [])
+        agent_config = request.config.get("agent_config", {})
+        
+        if not challenges:
+            return False, "No challenges specified in config."
+
+        if challenges == ["all"] or challenges == "all":
             # If "all" is specified, discover challenges
             discovered_challenges = discover_all_challenges(self.writeups_path)
             if not discovered_challenges:
@@ -44,17 +56,24 @@ class Agent:
         else:
             # Validate specific challenges exist
             all_available_challenges = discover_all_challenges(self.writeups_path)
-            missing_challenges = [c for c in request.challenges if c not in all_available_challenges]
+            missing_challenges = [c for c in challenges if c not in all_available_challenges]
             if missing_challenges:
                 return False, f"Missing challenges: {', '.join(missing_challenges)}"
 
-        if "mode" not in request.agent_config:
+        if "mode" not in agent_config:
             return False, "Agent configuration missing 'mode' (e.g., 'internal' or 'a2a')."
 
         return True, "ok"
 
     async def run(self, message: Message, updater: TaskUpdater) -> None:
-        """Execute the evaluation logic based on the incoming message."""
+        """Implement your agent logic here.
+
+        Args:
+            message: The incoming message
+            updater: Report progress (update_status) and results (add_artifact)
+
+        Use self.messenger.talk_to_agent(message, url) to call other agents.
+        """
         input_text = get_message_text(message)
 
         try:
@@ -71,8 +90,24 @@ class Agent:
             TaskState.working, new_agent_text_message("Starting evaluation setup...")
         )
 
+        # Extract config fields
+        challenges = request.config.get("challenges", [])
+        agent_config = request.config.get("agent_config", {})
+        evaluator_config = request.config.get("evaluator_config", {})
+        max_iterations = request.config.get("max_iterations", 10)
+        enable_phoenix = request.config.get("enable_phoenix", False)
+
+        # Extract agent information from participants if in a2a mode
+        if agent_config.get("mode") == "a2a" and request.participants:
+            # participants is a dict mapping role -> URL
+            # For now, we'll take the first participant as the agent to evaluate
+            for role, url in request.participants.items():
+                agent_config["agent_url"] = str(url)  # Convert HttpUrl to string
+                agent_config["role"] = role
+                break  # Use first participant as the agent
+
         # Resolve challenge list
-        challenges_to_evaluate = request.challenges
+        challenges_to_evaluate = challenges
         if challenges_to_evaluate == ["all"] or challenges_to_evaluate == "all":
             challenges_to_evaluate = discover_all_challenges(self.writeups_path)
             await updater.update_status(
@@ -84,15 +119,15 @@ class Agent:
             )
 
         # Create agent interface
-        print(f"Creating agent interface in {request.agent_config['mode']} mode...")
-        agent_interface = create_agent_interface(request.agent_config)
+        print(f"Creating agent interface in {agent_config['mode']} mode...")
+        agent_interface = create_agent_interface(agent_config)
 
         # Create step evaluator
         print("Creating step evaluator...")
-        evaluator_model = request.evaluator_config.get("model", "gpt-4o")
-        evaluator_max_tokens = request.evaluator_config.get("max_tokens", 2000)
-        api_key = request.evaluator_config.get("api_key") or os.getenv("OPENAI_API_KEY")
-        base_url = request.evaluator_config.get("base_url") or os.getenv("OPENAI_BASE_URL")
+        evaluator_model = evaluator_config.get("model", "gpt-4o")
+        evaluator_max_tokens = evaluator_config.get("max_tokens", 2000)
+        api_key = evaluator_config.get("api_key") or os.getenv("OPENAI_API_KEY")
+        base_url = evaluator_config.get("base_url") or os.getenv("OPENAI_BASE_URL")
 
         step_evaluator = StepEvaluator(
             model=evaluator_model,
@@ -103,11 +138,10 @@ class Agent:
 
         # Create workflow
         print("Building evaluation workflow...")
-        enable_phoenix = request.enable_phoenix
         workflow = EvaluatorWorkflow(
             agent_interface=agent_interface,
             step_evaluator=step_evaluator,
-            max_iterations_per_step=request.max_iterations,
+            max_iterations_per_step=max_iterations,
             enable_phoenix=enable_phoenix
         )
 
@@ -119,9 +153,9 @@ class Agent:
 
             try:
                 agent_llm_config = {
-                    "model": request.agent_config.get("model", "gpt-4o"),
-                    "temperature": request.agent_config.get("temperature", 0.7),
-                    "max_tokens": request.agent_config.get("max_tokens", 500),
+                    "model": agent_config.get("model", "gpt-4o"),
+                    "temperature": agent_config.get("temperature", 0.7),
+                    "max_tokens": agent_config.get("max_tokens", 500),
                 }
 
                 evaluator_llm_config = {
