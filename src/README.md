@@ -1,87 +1,207 @@
-# A2A Agent Template
+# BraceGreen Evaluator - Source Code
 
-A minimal template for building [A2A (Agent-to-Agent)](https://a2a-protocol.org/latest/) green agents compatible with the [AgentBeats](https://agentbeats.dev) platform.
+A2A-compatible green agent for evaluating penetration testing agents on CTF challenges with AgentBeats.
+
+Based on the [A2A Agent Template](https://github.com/RDI-Foundation/green-agent-template) for building AgentBeats-compatible green agents.
 
 ## Project Structure
 
 ```
 src/
-├─ server.py      # Server setup and agent card configuration
-├─ executor.py    # A2A request handling
-├─ agent.py       # Your agent implementation goes here
-└─ messenger.py   # A2A messaging utilities
-tests/
-└─ test_agent.py  # Agent tests
-Dockerfile        # Docker configuration
-pyproject.toml    # Python dependencies
-.github/
-└─ workflows/
-   └─ test-and-publish.yml # CI workflow
+├─ server.py           # A2A server for AgentBeats (production mode)
+├─ executor.py         # A2A request handling and task lifecycle
+├─ agent.py            # Main evaluator agent implementation
+├─ messenger.py        # A2A messaging utilities
+├─ white_agent.py      # Baseline white agent (purple agent) under test
+├─ evaluator/          # LangGraph-based evaluation workflow
+│  ├─ main.py          # Standalone CLI runner (development/testing mode)
+│  ├─ workflow.py      # LangGraph workflow definition
+│  ├─ agent_interface.py  # Interface to agent under test
+│  ├─ step_evaluator.py   # Semantic comparison of predictions
+│  ├─ state.py         # State schema definitions
+│  ├─ utils.py         # Helper functions
+│  └─ a2a_client.py    # A2A protocol client
+└─ tests/              # Unit and integration tests
+   ├─ conftest.py      # Test configuration
+   └─ test_agent.py    # Agent tests
 ```
 
-## Getting Started
+## Data Repository
 
-1. **Create your repository** - Click "Use this template" to create your own repository from this template
+The evaluator requires CTF challenge data from the [brace-ctf-data](https://github.com/LSX-UniWue/brace-ctf-data) repository:
 
-2. **Implement your agent** - Add your agent logic to [`src/agent.py`](src/agent.py)
-
-3. **Configure your agent card** - Fill in your agent's metadata (name, skills, description) in [`src/server.py`](src/server.py)
-
-4. **Write your tests** - Add custom tests for your agent in [`tests/test_agent.py`](tests/test_agent.py)
-
-For a concrete example of implementing a green agent using this template, see this [draft PR](https://github.com/RDI-Foundation/green-agent-template/pull/3).
+```bash
+# Clone the challenge data repository
+git clone https://github.com/LSX-UniWue/brace-ctf-data.git data
+```
 
 ## Running Locally
+
+### AgentBeats Server Mode (A2A)
+
+Run the evaluator as an A2A server for AgentBeats integration:
 
 ```bash
 # Install dependencies
 uv sync
 
-# Run the server
-uv run src/server.py
+# Clone challenge data
+git clone https://github.com/LSX-UniWue/brace-ctf-data.git data
+
+# Run the A2A server (default port 9001)
+uv run python -m src.server
+
+# Or with custom configuration
+uv run python -m src.server --host 0.0.0.0 --port 9001 --writeups-path ./data
 ```
 
-## Running with Docker
+### Standalone CLI Mode
+
+For direct local evaluation without AgentBeats:
+
+```bash
+# See CLI Usage section below or src/evaluator/README.md for details
+uv run python -m src.evaluator.main --challenge Funbox
+```
+
+## Running with Docker (AgentBeats Deployment)
+
+The Docker container runs `src/server.py` (A2A server mode) with dynamic data loading - challenge data is cloned from Git at container startup rather than being baked into the image.
 
 ```bash
 # Build the image
-docker build -t my-agent .
+docker build -t bracegreen-evaluator .
 
-# Run the container
-docker run -p 9009:9009 my-agent
+# Run the A2A server (data is cloned automatically at startup)
+docker run -p 9001:9001 \
+  -e OPENAI_API_KEY=your-key \
+  -e DATA_REPO_URL=https://github.com/LSX-UniWue/brace-ctf-data \
+  -e DATA_BRANCH=master \
+  bracegreen-evaluator
 ```
 
-## Testing
+The container automatically:
+1. Clones challenge data from `DATA_REPO_URL` to `/home/agent/data`
+2. Starts `src/server.py` on port 9001 with `--writeups-path /home/agent/data`
 
-Run A2A conformance tests against your agent.
+**Environment Variables:**
+- `OPENAI_API_KEY` - Required: OpenAI API key for LLM calls
+- `DATA_REPO_URL` - Optional: Git repository URL for challenge data (default: https://github.com/LSX-UniWue/brace-ctf-data.git)
+- `DATA_BRANCH` - Optional: Git branch to use (default: master)
+- `GITHUB_TOKEN` - Optional: For private data repositories
+- `SKIP_DATA_CLONE` - Optional: Set to "true" to skip data cloning (default: false)
+
+**Server Configuration (passed to `src/server.py`):**
+
+You can override the default server arguments:
+```bash
+docker run -p 9001:9001 \
+  -e OPENAI_API_KEY=your-key \
+  bracegreen-evaluator \
+  --host 0.0.0.0 --port 9001 --writeups-path /home/agent/data
+```
+
+See [AgentBeats Deployment Guide](../AGENTBEATS_DEPLOYMENT.md) for complete deployment instructions.
+
+
+## Testing the A2A Server
+
+Run A2A conformance tests against the AgentBeats server:
 
 ```bash
 # Install test dependencies
 uv sync --extra test
 
-# Start your agent (uv or docker; see above)
+# Clone challenge data
+git clone https://github.com/LSX-UniWue/brace-ctf-data.git data
 
-# Run tests against your running agent URL
-uv run pytest --agent-url http://localhost:9009
+# Start the A2A evaluator server
+uv run python -m src.server
+
+# In another terminal, run A2A conformance tests
+uv run pytest --agent-url http://localhost:9001
 ```
+
+## Usage Modes
+
+BraceGreen supports two usage modes:
+
+### 1. AgentBeats Server Mode (Production)
+
+Run as an A2A server for AgentBeats platform integration. The server receives evaluation requests via the A2A protocol.
+
+**Start the server:**
+```bash
+uv run python -m src.server --host 0.0.0.0 --port 9091 --writeups-path ./data
+```
+
+
+
+**Send evaluation requests** to `http://localhost:9001` with this minimum configuration:
+
+```json
+{
+  "participants": {
+    "solver": "http://localhost:9002"
+  },
+  "config": {
+    "challenges": ["Funbox"],
+    "agent_config": {
+      "mode": "a2a"
+    }
+  }
+}
+```
+
+For details on the leaderboard and runner, please refer to [brace-agentbeats-leaderboard](https://github.com/LSX-UniWue/brace-agentbeats-leaderboard).
+
+
+### 2. Standalone CLI Mode of the Workflow (Development/Testing)
+
+Run evaluations directly from the command line without AgentBeats:
+
+```bash
+# Evaluate a single challenge
+uv run python -m src.evaluator.main --challenge Funbox
+
+# Evaluate all challenges
+uv run python -m src.evaluator.main --challenges all
+
+# Evaluate a remote A2A agent
+uv run python -m src.evaluator.main --challenge Funbox --agent-url http://localhost:9002
+
+# Custom configuration
+uv run python -m src.evaluator.main \
+  --challenge Funbox \
+  --agent-model gpt-4o \
+  --evaluator-model gpt-4o \
+  --max-iterations 10 \
+  --output results.json
+```
+
+See [Evaluator Documentation](evaluator/README.md) for all CLI options.
+
 
 ## Publishing
 
-The repository includes a GitHub Actions workflow that automatically builds, tests, and publishes a Docker image of your agent to GitHub Container Registry.
+GitHub Actions automatically builds and publishes Docker images to GitHub Container Registry:
 
-If your agent needs API keys or other secrets, add them in Settings → Secrets and variables → Actions → Repository secrets. They'll be available as environment variables during CI tests.
+- **Push to `main`** → publishes `latest` tag
+- **Create a git tag** (e.g. `v1.0.0`) → publishes version tags
 
-- **Push to `main`** → publishes `latest` tag:
-```
-ghcr.io/<your-username>/<your-repo-name>:latest
-```
-
-- **Create a git tag** (e.g. `git tag v1.0.0 && git push origin v1.0.0`) → publishes version tags:
-```
-ghcr.io/<your-username>/<your-repo-name>:1.0.0
-ghcr.io/<your-username>/<your-repo-name>:1
+```bash
+git tag v1.0.0
+git push origin v1.0.0
 ```
 
-Once the workflow completes, find your Docker image in the Packages section (right sidebar of your repository). Configure the package visibility in package settings.
+The image will be available at:
+```
+ghcr.io/LSX-UniWue/brace-green:latest
+ghcr.io/LSX-UniWue/brace-green:1.0.0
+ghcr.io/LSX-UniWue/brace-green:1
+```
 
-> **Note:** Organization repositories may need package write permissions enabled manually (Settings → Actions → General). Version tags must follow [semantic versioning](https://semver.org/) (e.g., `v1.0.0`).
+## Documentation
+
+- [Main README](../README.md) - Project overview
+- [Evaluator Documentation](evaluator/README.md) - Detailed workflow documentation
