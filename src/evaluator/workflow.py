@@ -237,7 +237,7 @@ class EvaluatorWorkflow:
             print(f"  Actual evaluation starts from step 2\n")
             
             # Build result for this step (NOT marking as completed)
-            step_result = self._build_step_result(current_step, None)
+            step_result = self._build_step_result(current_step, None, task_mode=task_mode)
             # Mark this as an example step that doesn't count toward score
             step_result["_example_step"] = True
             # Mark the gold alternative as NOT completed (it's just an example)
@@ -357,7 +357,8 @@ class EvaluatorWorkflow:
             eval_result["matched_command"] = state["_accumulated_commands"]
         
         # Build result structure for this step based on its format
-        step_result = self._build_step_result(current_step, eval_result)
+        task_mode = state.get("task_mode", "command")
+        step_result = self._build_step_result(current_step, eval_result, task_mode=task_mode)
         
         # Add to completed results
         new_completed_results = state["completed_results"] + [step_result]
@@ -763,16 +764,30 @@ class EvaluatorWorkflow:
             print(f"  Error during evaluation: {e}")
             return {"current_step_goal_reached": True}
     
-    def _build_step_result(self, step_data: Any, eval_result: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+    def _build_step_result(self, step_data: Any, eval_result: Optional[Dict[str, Any]], task_mode: str = "command") -> Dict[str, Any]:
         """Build the result structure for a completed step.
         
         Args:
             step_data: The step data from steps_enriched.json
             eval_result: Evaluation result (None if no match found)
+            task_mode: The task mode (command, goal, or anticipated_result)
             
         Returns:
             Step result structure matching the output format
         """
+        # Determine field names based on task mode
+        if task_mode == "goal":
+            original_field = "original_goal"
+            matched_field = "matched_goal"
+            source_field = "goal"
+        elif task_mode == "anticipated_result":
+            original_field = "original_anticipated_result"
+            matched_field = "matched_anticipated_result"
+            source_field = "results"  # Use "results" field from steps_enriched.json
+        else:  # command
+            original_field = "original_command"
+            matched_field = "matched_command"
+            source_field = "command"
         if "or" in step_data:
             # Step with alternatives
             or_results = []
@@ -783,37 +798,37 @@ class EvaluatorWorkflow:
                     for sub_step in alternative:
                         sub_result = {
                             "completed": False,
-                            "original_command": sub_step.get("command", ""),
+                            original_field: sub_step.get(source_field, ""),
                             "gold": sub_step.get("gold", False)
                         }
                         # Mark as completed if this alternative matched
                         if eval_result and eval_result["matched_alternative_index"] == i:
                             sub_result["completed"] = True
-                            sub_result["matched_command"] = eval_result["matched_command"]
+                            sub_result[matched_field] = eval_result["matched_command"]
                         sub_results.append(sub_result)
                     or_results.append(sub_results)
                 else:
                     # Atomic alternative
                     alt_result = {
                         "completed": False,
-                        "original_command": alternative.get("command", ""),
+                        original_field: alternative.get(source_field, ""),
                         "gold": alternative.get("gold", False)
                     }
                     # Mark as completed if this alternative matched
                     if eval_result and eval_result["matched_alternative_index"] == i:
                         alt_result["completed"] = True
-                        alt_result["matched_command"] = eval_result["matched_command"]
+                        alt_result[matched_field] = eval_result["matched_command"]
                     or_results.append(alt_result)
             return {"or": or_results}
         else:
             # Single step without alternatives
             result = {
                 "completed": eval_result is not None,
-                "original_command": step_data.get("command", ""),
+                original_field: step_data.get(source_field, ""),
                 "gold": step_data.get("gold", False)
             }
             if eval_result:
-                result["matched_command"] = eval_result["matched_command"]
+                result[matched_field] = eval_result["matched_command"]
             return result
     
     # Conditional edge functions
