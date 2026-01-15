@@ -104,7 +104,7 @@ class Agent:
         challenges = request.config.get("challenges", [])
         agent_config = request.config.get("agent_config", {})
         evaluator_config = request.config.get("evaluator_config", {})
-        max_iterations = request.config.get("max_iterations", 10)
+        max_iterations = request.config.get("max_iterations", 5)
         enable_phoenix = request.config.get("enable_phoenix", False)
         include_goal = request.config.get("include_goal", "first")
         include_tactic = request.config.get("include_tactic", "first")

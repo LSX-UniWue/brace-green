@@ -121,6 +121,7 @@ class StepEvaluator(Runnable):
                 - matched_command: The predicted command that matched
                 - confidence: Confidence score (0.0-1.0)
                 - explanation: Reason for the evaluation
+                - agent_unknown: True if agent explicitly said "I don't know"
         """
         if not agent_response or not agent_response.strip():
             return {
@@ -128,7 +129,20 @@ class StepEvaluator(Runnable):
                 "matched_alternative_index": -1,
                 "matched_command": None,
                 "confidence": 0.0,
-                "explanation": "Empty agent response"
+                "explanation": "Empty agent response",
+                "is_fine_grained": False
+            }
+        
+        # Check for exact "I don't know" response - no need to evaluate or reiterate
+        if agent_response.strip() == "I don't know":
+            return {
+                "completed": False,
+                "matched_alternative_index": -1,
+                "matched_command": None,
+                "confidence": 0.0,
+                "explanation": "Agent explicitly indicated lack of knowledge",
+                "is_fine_grained": False,
+                "agent_unknown": True
             }
         
         # Protocol determines which alternatives to check
@@ -932,6 +946,15 @@ class StepEvaluator(Runnable):
                 - reason: Explanation of the decision
                 - is_fine_grained: Whether the command/result is too fine-grained
         """
+        # If agent explicitly said "I don't know", stop without reiterating
+        if evaluation_result.get("agent_unknown", False):
+            return {
+                "goal_reached": True,  # Consider it "ruled out"
+                "needs_more_predictions": False,
+                "reason": "Agent indicated lack of knowledge - goal ruled out",
+                "is_fine_grained": False
+            }
+        
         # If we found a match, goal is reached
         if evaluation_result["completed"]:
             # Adapt message based on protocol and task mode
