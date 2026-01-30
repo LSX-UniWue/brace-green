@@ -1,6 +1,8 @@
 import os
 import logging
+from pathlib import Path
 from dotenv import load_dotenv
+import litellm
 from litellm import acompletion
 
 from a2a.server.tasks import TaskUpdater
@@ -10,6 +12,26 @@ from a2a.utils import get_message_text, new_agent_text_message
 from mock_agent import MockAgent
 
 load_dotenv()
+
+# Initialize LiteLLM caching for the white agent
+def _init_cache():
+    """Initialize LiteLLM disk caching for the white agent."""
+    cache_disabled = os.getenv("LITELLM_CACHE_DISABLED", "").lower() in ("true", "1", "yes")
+    if cache_disabled:
+        print("⚠ White agent LLM caching disabled via LITELLM_CACHE_DISABLED")
+        return
+    
+    cache_dir = os.getenv("LITELLM_CACHE_DIR", ".litellm_cache")
+    Path(cache_dir).mkdir(parents=True, exist_ok=True)
+    
+    try:
+        litellm.cache = litellm.Cache(type="disk", disk_cache_dir=cache_dir)
+        litellm.enable_cache()
+        print(f"✓ White agent LLM caching enabled (dir: {cache_dir})")
+    except Exception as e:
+        print(f"⚠ Failed to initialize white agent cache: {e}")
+
+_init_cache()
 
 # Configure logging
 logging.basicConfig(
