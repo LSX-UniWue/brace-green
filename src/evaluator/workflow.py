@@ -43,6 +43,7 @@ class EvaluatorWorkflow:
         agent_interface: LLMAgentInterface,
         step_evaluator: StepEvaluator,
         max_iterations_per_step: int = 10,
+        max_steps: int = None,
         enable_phoenix: bool = False,
         include_goal: str = "first",
         include_tactic: str = "first",
@@ -55,6 +56,7 @@ class EvaluatorWorkflow:
             agent_interface: Interface to the agent under test
             step_evaluator: Evaluator for comparing predictions
             max_iterations_per_step: Maximum iterations per step
+            max_steps: Maximum number of steps to evaluate (default: None = all steps)
             enable_phoenix: Whether to enable Phoenix tracing (default: True)
             include_goal: When to include goals in prompts: "first", "always", or "never" (default: "first")
             include_tactic: When to include tactics in prompts: "first", "always", or "never" (default: "first")
@@ -65,6 +67,7 @@ class EvaluatorWorkflow:
         self.agent_interface = agent_interface
         self.step_evaluator = step_evaluator
         self.max_iterations_per_step = max_iterations_per_step
+        self.max_steps = max_steps
         self.enable_phoenix = enable_phoenix and PHOENIX_AVAILABLE
         self.include_goal = include_goal
         self.include_tactic = include_tactic
@@ -203,6 +206,12 @@ class EvaluatorWorkflow:
         print(f"\n=== Loading challenge: {state['challenge_name']} ===\n")
         
         steps = load_challenge_steps(state["challenge_name"])
+        
+        # Limit steps if max_steps is set
+        if self.max_steps is not None and self.max_steps > 0:
+            original_count = len(steps)
+            steps = steps[:self.max_steps]
+            print(f"Limiting evaluation to {len(steps)}/{original_count} steps (--max-steps={self.max_steps})\n")
         
         # Initialize with empty results - we'll build them stepwise
         return {
