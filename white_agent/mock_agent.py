@@ -6,6 +6,7 @@ answers from evaluation results.
 """
 
 import json
+import os
 import re
 from pathlib import Path
 from typing import Optional, Dict, Any, List
@@ -33,14 +34,21 @@ class MockAgent:
         data_dir = Path(__file__).parent / "mock_data"
         mock_data = {}
         
-        # Load evaluation results for each task mode
-        result_files = {
-            "command": "LSX-UniWue-20260115-172731.json",
-            "anticipated_result": "LSX-UniWue-20260115-172655.json",
-            "goal": "LSX-UniWue-20260115-173651.json"
-        }
+        # Check for override via environment variable
+        env_mock_file = os.getenv("MOCK_DATA_FILE")
+        if env_mock_file:
+            result_file = env_mock_file
+            print(f"Mock agent using custom file: {result_file}")
+        else:
+            # Default files for each task mode
+            result_files = {
+                "command": "LSX-UniWue-20260115-172731.json",
+                "anticipated_result": "LSX-UniWue-20260115-172655.json",
+                "goal": "LSX-UniWue-20260115-173651.json"
+            }
+            result_file = result_files.get(self.task_mode)
+            print(f"Mock agent using default file for {self.task_mode}: {result_file}")
         
-        result_file = result_files.get(self.task_mode)
         if result_file:
             result_path = data_dir / result_file
             if result_path.exists():

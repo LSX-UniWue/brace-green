@@ -153,9 +153,9 @@ def parse_args():
     parser.add_argument(
         "--prompt-style",
         type=str,
-        choices=["default", "cot", "rubric", "minimal"],
+        choices=["default", "cot", "rubric", "minimal", "original"],
         default="default",
-        help="Evaluation prompt style: 'default' (semantic + examples), 'cot' (chain-of-thought), 'rubric' (point-based scoring), 'minimal' (fast binary) (default: default)"
+        help="Evaluation prompt style: 'default' (semantic + examples), 'cot' (chain-of-thought), 'rubric' (point-based scoring), 'minimal' (fast binary), 'original' (pre-refinement baseline) (default: default)"
     )
     parser.add_argument(
         "--max-steps",

@@ -170,6 +170,8 @@ class Agent:
         evaluator_max_tokens = evaluator_config.get("max_tokens", 2000)
         api_key = evaluator_config.get("api_key") or os.getenv("OPENAI_API_KEY")
         base_url = evaluator_config.get("base_url") or os.getenv("OPENAI_BASE_URL")
+        prompt_style = evaluator_config.get("prompt_style") or os.getenv("PROMPT_STYLE", "default")
+        print(f"Using prompt style: {prompt_style}")
 
         step_evaluator = StepEvaluator(
             model=evaluator_model,
@@ -177,7 +179,8 @@ class Agent:
             api_key=api_key,
             base_url=base_url,
             evaluation_protocol=evaluation_protocol,
-            task_mode=task_mode
+            task_mode=task_mode,
+            prompt_style=prompt_style
         )
 
         # Create workflow

@@ -9,6 +9,7 @@ from .default import DefaultPromptTemplate
 from .chain_of_thought import ChainOfThoughtPromptTemplate
 from .rubric import RubricPromptTemplate
 from .minimal import MinimalPromptTemplate
+from .original import OriginalPromptTemplate
 
 # Registry of available prompt styles
 PROMPT_STYLES = {
@@ -16,13 +17,14 @@ PROMPT_STYLES = {
     "cot": ChainOfThoughtPromptTemplate,
     "rubric": RubricPromptTemplate,
     "minimal": MinimalPromptTemplate,
+    "original": OriginalPromptTemplate,
 }
 
 def get_prompt_template(style: str = "default") -> BasePromptTemplate:
     """Get a prompt template by style name.
     
     Args:
-        style: Name of the prompt style ("default", "cot", "rubric", "minimal")
+        style: Name of the prompt style ("default", "cot", "rubric", "minimal", "original")
         
     Returns:
         Instance of the requested prompt template
@@ -48,6 +50,7 @@ __all__ = [
     "ChainOfThoughtPromptTemplate",
     "RubricPromptTemplate",
     "MinimalPromptTemplate",
+    "OriginalPromptTemplate",
     "PROMPT_STYLES",
     "get_prompt_template",
     "list_prompt_styles",
