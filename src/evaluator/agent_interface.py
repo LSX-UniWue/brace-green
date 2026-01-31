@@ -10,6 +10,9 @@ from langchain_core.messages import HumanMessage, SystemMessage
 
 from ..messenger import Messenger
 
+# Import caching utilities
+from .cache import init_cache, is_cache_enabled
+
 
 class AgentInterface(Runnable):
     """Abstract base class for agent under test.
@@ -85,6 +88,9 @@ class LLMAgentInterface(AgentInterface):
             os.environ["OPENAI_API_KEY"] = self.api_key
         if self.base_url:
             os.environ["OPENAI_BASE_URL"] = self.base_url
+        
+        # Initialize LLM caching (no-op if already initialized)
+        init_cache(verbose=not is_cache_enabled())
         
         # Set system prompt based on task mode (not protocol)
         if self.task_mode == "command":
@@ -453,4 +459,3 @@ def create_agent_interface(config: Dict[str, Any]) -> AgentInterface:
         )
     else:
         raise ValueError(f"Invalid mode: {mode}. Must be 'internal' or 'a2a'")
-

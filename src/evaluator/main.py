@@ -11,6 +11,7 @@ from .agent_interface import LLMAgentInterface, create_agent_interface
 from .step_evaluator import StepEvaluator
 from .workflow import EvaluatorWorkflow
 from .utils import save_evaluation_results, discover_all_challenges
+from .cache import init_cache, clear_cache, print_cache_status, get_cache_stats, disable_cache
 
 # ANSI color codes for terminal output
 class Colors:
@@ -150,6 +151,19 @@ def parse_args():
         help="Task mode: 'command' (predict commands), 'anticipated_result' (predict information/state changes), 'goal' (predict step goal) (default: command)"
     )
     parser.add_argument(
+        "--prompt-style",
+        type=str,
+        choices=["default", "cot", "rubric", "minimal", "original"],
+        default="default",
+        help="Evaluation prompt style: 'default' (semantic + examples), 'cot' (chain-of-thought), 'rubric' (point-based scoring), 'minimal' (fast binary), 'original' (pre-refinement baseline) (default: default)"
+    )
+    parser.add_argument(
+        "--max-steps",
+        type=int,
+        default=None,
+        help="Maximum number of steps to evaluate (default: all steps)"
+    )
+    parser.add_argument(
         "--writeups-path",
         type=str,
         default="./data",
@@ -190,6 +204,23 @@ def parse_args():
         help="Disable Phoenix tracing"
     )
     
+    # Cache options
+    parser.add_argument(
+        "--no-cache",
+        action="store_true",
+        help="Disable LLM response caching"
+    )
+    parser.add_argument(
+        "--clear-cache",
+        action="store_true",
+        help="Clear the LLM cache before running"
+    )
+    parser.add_argument(
+        "--cache-status",
+        action="store_true",
+        help="Show cache status and exit"
+    )
+    
     return parser.parse_args()
 
 
@@ -200,6 +231,23 @@ def main():
     
     # Parse arguments
     args = parse_args()
+    
+    # Handle cache-only commands first
+    if args.cache_status:
+        print_cache_status()
+        return 0
+    
+    # Clear cache if requested
+    if args.clear_cache:
+        print("Clearing LLM cache...")
+        clear_cache(verbose=True)
+    
+    # Initialize caching early (unless disabled)
+    if not args.no_cache:
+        init_cache(verbose=True)
+    else:
+        # Globally disable caching - prevents init_cache() calls in submodules
+        disable_cache(verbose=True)
     
     # Validate incompatible option combinations
     if args.task_mode == "goal" and args.include_goal == "always":
@@ -289,6 +337,7 @@ def main():
     else:
         print(f"Agent URL: {args.agent_url}")
     print(f"Evaluator Model: {args.evaluator_model}")
+    print(f"Prompt Style: {args.prompt_style}")
     print(f"Max Iterations per Step: {args.max_iterations}")
     print(f"Output: {output_path}")
     print("=" * 70)
@@ -300,14 +349,15 @@ def main():
         agent_interface = create_agent_interface(agent_config)
         
         # Create step evaluator
-        print("Initializing step evaluator...")
+        print(f"Initializing step evaluator (prompt style: {args.prompt_style})...")
         step_evaluator = StepEvaluator(
             model=args.evaluator_model,
             max_tokens=args.evaluator_max_tokens,
             api_key=api_key,
             base_url=base_url,
             evaluation_protocol=args.evaluation_protocol,
-            task_mode=args.task_mode
+            task_mode=args.task_mode,
+            prompt_style=args.prompt_style
         )
         
         # Create workflow
@@ -320,6 +370,7 @@ def main():
             agent_interface=agent_interface,
             step_evaluator=step_evaluator,
             max_iterations_per_step=args.max_iterations,
+            max_steps=args.max_steps,
             enable_phoenix=not args.no_phoenix,
             include_goal=args.include_goal,
             include_tactic=args.include_tactic,
@@ -384,6 +435,12 @@ def main():
         print(f"Results saved to: {output_path}")
         print("=" * 70)
         
+        # Show cache status at the end
+        if not args.no_cache:
+            cache_stats = get_cache_stats()
+            if cache_stats.get("enabled"):
+                print(f"\n{Colors.BLUE}Cache Stats:{Colors.RESET} {cache_stats.get('cache_files', 0)} files, {cache_stats.get('cache_size_mb', 0)} MB")
+        
         return 0
         
     except KeyboardInterrupt:
@@ -399,4 +456,3 @@ def main():
 
 if __name__ == "__main__":
     sys.exit(main())
-
